@@ -7,32 +7,28 @@ const Home = () => {
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        console.log('Home page mounted');
     }, []);
 
     const handleTabChange = (tab: string) => {
+        setSearchQuery('');
         setActiveTab(tab);
     };
 
     const handleSearch = (query: string) => {
-        console.log('Search query:', query);
         setSearchQuery(query);
     };
 
     useEffect(() => {
-        console.log('atuando na busca:', searchQuery);
-    }, [searchQuery]);
+    }, [searchQuery, activeTab]);
 
     return (
         <div>
             <Header activeTab={activeTab} onTabChange={handleTabChange} onSearch={handleSearch} />
             <div>
                 {activeTab === 'all' ? (
-                    <GameList searchQuery={searchQuery} />
+                    <GameList searchQuery={searchQuery} local={false} />
                 ) : (
-                    <div>
-                        <p style={{ textAlign: 'center' }}>No games found</p>
-                    </div>
+                    <GameList searchQuery={searchQuery} local={true} />
                 )}
             </div>
         </div>
