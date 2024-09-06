@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { Button, Input } from '@nextui-org/react';
 import { CloseIcon, CheckIcon } from '@chakra-ui/icons';
-import { addGame } from '../services/api';
+import { addGame, updateGame } from '../services/api';
 import { Game } from '../types/Game';
+import { ValidationError, GameAlreadyAddedError } from '../types/Errors';
 
 interface FormInputs {
     name: string;
@@ -15,9 +16,11 @@ interface FormInputs {
 interface GameFormProps {
     onClose: () => void;
     game?: Game | null;
+    isOnlyEdit: boolean;
+    onGamesUpdated?: () => void;
 }
 
-const GameForm: React.FC<GameFormProps> = ({ onClose, game }) => {
+const GameForm: React.FC<GameFormProps> = ({ onClose, game, isOnlyEdit, onGamesUpdated }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const {
@@ -37,8 +40,9 @@ const GameForm: React.FC<GameFormProps> = ({ onClose, game }) => {
     const onSubmit: SubmitHandler<FormInputs> = async (data) => {
         setIsSubmitting(true);
         try {
+            const gameId = parseInt(game?.id.toString() || Date.now().toString());
             const newGame: Game = {
-                id: game?.id || Date.now(),
+                id: gameId,
                 slug: game?.slug || data.name.toLowerCase().replace(/\s/g, '-'),
                 name: data.name,
                 released: data.released,
@@ -49,11 +53,24 @@ const GameForm: React.FC<GameFormProps> = ({ onClose, game }) => {
                 platforms: game?.platforms || [],
             };
 
-            await addGame(newGame);
-            alert('Game added successfully!');
+            if (isOnlyEdit)
+                await updateGame(newGame.id, newGame);
+            else
+                await addGame(newGame);
+
+            if (onGamesUpdated) {
+                onGamesUpdated();
+            }
             onClose();
-        } catch {
-            alert('Failed to add game');
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                alert('Dados inválidos. Verifique os campos e tente novamente.');
+            }
+            if (error instanceof GameAlreadyAddedError) {
+                alert('Jogo já adicionado anteriormente.');
+            } else {
+                console.error('Unexpected error:', error);
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -97,10 +114,12 @@ const GameForm: React.FC<GameFormProps> = ({ onClose, game }) => {
                         label="Rating"
                         id="rating"
                         type="number"
+                        step={0.01}
                         {...register('rating', {
                             required: 'Rating is required',
                             min: { value: 0, message: 'Rating cannot be less than 0' },
-                            max: { value: 5, message: 'Rating cannot be more than 5' }
+                            max: { value: 5, message: 'Rating cannot be more than 5' },
+                            valueAsNumber: true
                         })}
                         className="border-gray-300 rounded-md shadow-sm"
                         isRequired
@@ -133,7 +152,7 @@ const GameForm: React.FC<GameFormProps> = ({ onClose, game }) => {
                     className="w-full py-2 px-4 text-white font-semibold rounded-md shadow-md"
                 >
                     <CheckIcon className="mr-2" />
-                    {isSubmitting ? 'Adicionando...' : 'Adicionar'}
+                    {isSubmitting ? 'Enviando...' : 'Salvar'}
                 </Button>
             </form>
         </div>
