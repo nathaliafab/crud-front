@@ -16,10 +16,14 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, onSearch }) => 
     };
 
     const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-        console.log('searchQuery', searchQuery);
         event.preventDefault();
         onSearch(searchQuery);
     };
+
+    const handleTabChange = (tab: string) => {
+        setSearchQuery('');
+        onTabChange(tab);
+    }
 
     return (
         <header className="bg-gray-900 text-white shadow-md">
@@ -35,7 +39,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, onSearch }) => 
                             className={`text-lg font-medium transition-colors duration-300 
                             ${activeTab === tab ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-300 hover:text-white'}
                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50`}
-                            onClick={() => onTabChange(tab)}
+                            onClick={() => handleTabChange(tab)}
                             aria-current={activeTab === tab ? 'page' : undefined}
                             role="tab"
                         >
