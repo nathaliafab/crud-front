@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { Game, GameSchema } from '../types/Game'; // Importa o esquema de validação GameSchema
+import { Game, GameSchema } from '../types/Game';
+import { ValidationError, GameAlreadyAddedError } from '../types/Errors';
 
 const API_KEY = import.meta.env.VITE_RAWG_API_KEY;
 
@@ -11,7 +12,7 @@ const rawg_api = axios.create({
 });
 
 const json_api = axios.create({
-    baseURL: 'http://localhost:3000/games',
+    baseURL: 'http://localhost:8000/games',
 });
 
 // Função para validar os dados do jogo com o esquema Zod
@@ -36,7 +37,6 @@ export const getGames = async ({ search = '', page = 1 }: { search?: string; pag
         });
 
         const results = response.data.results;
-        console.log('Results:', results);
         const games: Game[] = results.map((result: any) => ({
             id: result.id,
             slug: result.slug,
@@ -65,20 +65,31 @@ export const addGame = async (game: Game): Promise<void> => {
     try {
         const validGame = validateGameData(game);
         if (!validGame) {
-            throw new Error('Invalid game data');
+            throw new ValidationError('Invalid game data');
         }
+
+        const gameAlreadyAdded = await checkGameExists(validGame.id);
+        if (gameAlreadyAdded) {
+            throw new GameAlreadyAddedError('Game already exists');
+        }
+
         await json_api.post('', validGame);
         console.log('Game added successfully:', validGame);
     } catch (error) {
-        console.error('Error adding game:', error);
+        if (error instanceof Error) {
+            console.error('Error adding game:', error.message);
+        } else {
+            console.error('Unexpected error:', error);
+        }
+        throw error;
     }
 };
 
 // Função para remover um jogo da API local
 export const removeGame = async (id: number): Promise<void> => {
     try {
-        await json_api.delete(`/${id}`);
-        console.log('Game removed successfully');
+        const response = await json_api.delete(`/${id}`);
+        console.log('Game removed successfully:', response);
     } catch (error) {
         console.error('Error removing game:', error);
     }
@@ -89,47 +100,43 @@ export const updateGame = async (id: number, updatedGame: Partial<Game>): Promis
     try {
         const validGame = validateGameData({ ...updatedGame, id } as Game);
         if (!validGame) {
-            throw new Error('Invalid game data');
+            throw new ValidationError('Invalid game data');
         }
-        await json_api.put(`/${id}`, validGame);
-        console.log('Game updated successfully');
+        const response = await json_api.put(`/${id}`, validGame);
+        console.log('Game updated successfully:', response);
     } catch (error) {
         console.error('Error updating game:', error);
     }
 };
 
-// Função para recuperar um jogo da API local
-export const getLocalGame = async (id: number): Promise<Game | null> => {
+// Função para verificar se um jogo já foi adicionado na API local
+export const checkGameExists = async (id: number): Promise<boolean> => {
     try {
         const response = await json_api.get(`/${id}`);
-        return validateGameData(response.data);
+        return response.status === 200;
     } catch (error) {
-        console.error('Error fetching local game:', error);
-        return null;
+        return false;
     }
 };
 
 // Função para recuperar todos os jogos da API local com paginação e pesquisa
 export const getLocalGames = async ({ search = '', page = 1, }: { search?: string; page?: number; }): Promise<Game[]> => {
     const pageSize = 10;
-    const offset = (page - 1) * pageSize; // Calcula o offset com base na página atual
 
     try {
-        const response = await json_api.get<Game[]>('', {
+        const response = await json_api.get('', {
             params: {
-                _limit: pageSize, // Limita o número de jogos retornados
-                _start: offset, // Define o ponto de partida para a paginação
+                _page: page,
+                _per_page: pageSize,
+                _start: (page - 1) * pageSize,
+                _limit: pageSize,
             },
         });
 
-        const games = response.data
-            .map(game => validateGameData(game))
-            .filter((game): game is Game => game !== null)
-            .filter(game => game.name.toLowerCase().includes(search.toLowerCase()));
-
-        console.log('Local games fetched:', games);
+        const games: Game[] = (response.data as Game[]).filter((game: Game) => game.name.toLowerCase().includes(search.toLowerCase()));
         return games;
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error fetching local games:', error);
         return [];
     }
